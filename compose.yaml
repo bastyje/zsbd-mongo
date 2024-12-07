@@ -1,0 +1,51 @@
+name: mongo
+
+services:
+
+  mongo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+#    command: ["--replSet", "rs0" ,"--bind_ip_all", "--port", "27017","--keyFile", "/etc/mongodb/pki/keyfile"]
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d/
+      - ./rs_keyfile:/etc/mongodb/pki/keyfile
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    healthcheck:
+      test: echo "db.runCommand('ping')" | mongosh --port 27017 --quiet
+#      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}) }" | mongosh --port 27017 --quiet
+      interval: 3s
+      start_period: 0s
+      timeout: 10s
+      retries: 30
+
+  mongo-express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8081:8081
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: example
+      ME_CONFIG_MONGODB_URL: mongodb://root:example@mongo:27017/
+      ME_CONFIG_BASICAUTH: false
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    restart: always
+    tty: true
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+# mongo --host mongo -u root -p example --authenticationDatabase admin insurance
